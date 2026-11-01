@@ -1,5 +1,73 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>M-quant Paper Execution</title><style>body{font:15px system-ui,sans-serif;max-width:1100px;margin:2rem auto;padding:0 1rem;color:#17202a}header{display:flex;justify-content:space-between;align-items:center}section{border:1px solid #ddd;border-radius:8px;padding:1rem;margin:1rem 0}table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #eee;padding:.45rem;text-align:left}code{background:#f2f2f2;padding:.15rem .3rem}</style></head>
-<body><header><h1>Paper Execution</h1><span id="health">loading…</span></header><p>只读监控页面；系统固定为 <code>PAPER</code>，网页不提供下单按钮。</p><label>账户 <input id="account" value="paper"><button onclick="load()">刷新</button></label><section><h2>账户总览</h2><pre id="summary">loading…</pre></section><section><h2>持仓</h2><table id="positions"><thead><tr><th>标的</th><th>数量</th><th>可卖</th><th>成本</th><th>最新价</th></tr></thead><tbody></tbody></table></section><section><h2>订单</h2><table id="orders"><thead><tr><th>订单</th><th>方向</th><th>标的</th><th>数量</th><th>状态</th><th>原因</th></tr></thead><tbody></tbody></table></section><script>
-const esc=x=>String(x??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); async function load(){const a=encodeURIComponent(document.querySelector('#account').value);const r=await fetch('/api/v1/accounts/'+a+'/dashboard');if(!r.ok){summary.textContent='账户不存在';return}const d=await r.json();summary.textContent=JSON.stringify({available_cash:d.available_cash,withdrawable_cash:d.withdrawable_cash,pending_cash:d.pending_cash,total_assets:d.total_assets},null,2);positions.querySelector('tbody').innerHTML=(d.positions||[]).map(p=>`<tr><td>${esc(p.symbol)}</td><td>${esc(p.quantity)}</td><td>${esc(p.available_quantity)}</td><td>${esc(p.average_price)}</td><td>${esc(p.price)}</td></tr>`).join('');orders.querySelector('tbody').innerHTML=(d.orders||[]).map(o=>`<tr><td>${esc(o.order_id)}</td><td>${esc(o.side)}</td><td>${esc(o.symbol)}</td><td>${esc(o.quantity)}</td><td>${esc(o.status)}</td><td>${esc(o.reason)}</td></tr>`).join('')}fetch('/api/v1/health').then(r=>r.json()).then(x=>health.textContent=x.mode);load();
-</script></body></html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width">
+  <title>Paper Execution Monitor</title>
+  <style>
+    body{font:15px system-ui,sans-serif;max-width:1100px;margin:2rem auto;padding:0 1rem;color:#17202a}
+    header{display:flex;justify-content:space-between;align-items:center;gap:1rem}
+    section{border:1px solid #ddd;border-radius:8px;padding:1rem;margin:1rem 0;overflow:auto}
+    table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #eee;padding:.45rem;text-align:left;vertical-align:top}
+    code{background:#f2f2f2;padding:.15rem .3rem}pre{white-space:pre-wrap}
+    .empty{color:#777;text-align:center}
+  </style>
+</head>
+<body>
+  <header><h1>Paper Execution</h1><span id="health">loading…</span></header>
+  <p>只读监控页面；系统固定为 <code>PAPER</code>，网页不提供下单按钮。</p>
+  <label>账户 <input id="account" value="paper"></label>
+  <button id="refresh" type="button">刷新</button>
+
+  <section><h2>现金概览</h2><pre id="cash-summary">loading…</pre></section>
+  <section><h2>持仓</h2><table id="positions"><thead><tr><th>标的</th><th>数量</th><th>可卖</th><th>成本</th><th>最新价</th></tr></thead><tbody></tbody></table></section>
+  <section><h2>订单</h2><table id="orders"><thead><tr><th>订单</th><th>方向</th><th>标的</th><th>数量</th><th>状态</th><th>原因</th></tr></thead><tbody></tbody></table></section>
+  <section><h2>成交</h2><table id="fills"><thead><tr><th>成交</th><th>订单</th><th>方向</th><th>标的</th><th>数量</th><th>价格</th><th>费用</th><th>时间</th></tr></thead><tbody></tbody></table></section>
+  <section><h2>资金流水</h2><table id="cash-ledger"><thead><tr><th>编号</th><th>类型</th><th>金额</th><th>可用变化</th><th>可提现变化</th><th>待结算变化</th><th>时间</th></tr></thead><tbody></tbody></table></section>
+  <section><h2>信号</h2><table id="signals"><thead><tr><th>信号</th><th>策略</th><th>动作</th><th>准入</th><th>信号日期</th><th>状态</th><th>导入时间</th></tr></thead><tbody></tbody></table></section>
+  <section><h2>风控</h2><table id="risk-events"><thead><tr><th>编号</th><th>级别</th><th>原因</th><th>信号</th><th>订单</th><th>时间</th></tr></thead><tbody></tbody></table></section>
+  <section><h2>审计</h2><table id="audit-events"><thead><tr><th>编号</th><th>事件</th><th>引用类型</th><th>引用</th><th>详情</th><th>时间</th></tr></thead><tbody></tbody></table></section>
+  <section><h2>快照</h2><table id="snapshots"><thead><tr><th>日期</th><th>可用现金</th><th>待结算</th><th>可提现</th><th>持仓市值</th><th>总资产</th><th>盈亏</th></tr></thead><tbody></tbody></table></section>
+
+  <script>
+    const $ = selector => document.querySelector(selector);
+    const esc = value => String(value ?? '').replace(/[&<>]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[char]));
+    const format = value => typeof value === 'object' && value !== null ? JSON.stringify(value) : String(value ?? '');
+    function fillTable(selector, rows, columns) {
+      const body = $(selector + ' tbody');
+      if (!rows.length) {
+        body.innerHTML = `<tr><td class="empty" colspan="${columns.length}">暂无记录</td></tr>`;
+        return;
+      }
+      body.innerHTML = rows.map(row => `<tr>${columns.map(column => `<td>${esc(format(row[column]))}</td>`).join('')}</tr>`).join('');
+    }
+    async function load() {
+      const account = encodeURIComponent($('#account').value);
+      const response = await fetch('/api/v1/accounts/' + account + '/dashboard');
+      if (!response.ok) {
+        $('#cash-summary').textContent = '账户不存在';
+        return;
+      }
+      const data = await response.json();
+      $('#cash-summary').textContent = JSON.stringify({
+        account: data.account,
+        cash: data.cash,
+        pending: data.pending,
+        withdrawable: data.withdrawable,
+        total_assets: data.total_assets
+      }, null, 2);
+      fillTable('#positions', data.positions || [], [['symbol'],['quantity'],['available_quantity'],['average_price'],['price']].map(x => x[0]));
+      fillTable('#orders', data.orders || [], ['order_id','side','symbol','quantity','status','reason']);
+      fillTable('#fills', data.fills || [], ['fill_id','order_id','side','symbol','quantity','price','fee','executed_at']);
+      fillTable('#cash-ledger', data.cash_ledger || [], ['entry_id','entry_type','amount','available_delta','withdrawable_delta','pending_delta','created_at']);
+      fillTable('#signals', data.signals || [], ['signal_id','strategy_id','action','gate_status','signal_date','status','imported_at']);
+      fillTable('#risk-events', data.risk_events || [], ['event_id','level','reason','signal_id','order_id','created_at']);
+      fillTable('#audit-events', data.audit_events || [], ['event_id','event_type','reference_type','reference_id','details_json','created_at']);
+      fillTable('#snapshots', data.snapshots || [], ['as_of','available_cash','pending_cash','withdrawable_cash','holdings_value','total_assets','pnl']);
+    }
+    $('#refresh').addEventListener('click', load);
+    fetch('/api/v1/health').then(response => response.json()).then(data => { $('#health').textContent = data.mode; }).catch(() => { $('#health').textContent = 'offline'; });
+    load().catch(() => { $('#cash-summary').textContent = '无法读取账户'; });
+  </script>
+</body>
+</html>

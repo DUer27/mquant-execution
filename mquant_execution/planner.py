@@ -13,7 +13,7 @@ class RebalancePlanner:
     def plan(self,account_id,signal_id,quote_date):
         signal=self.db.one("SELECT * FROM signals WHERE signal_id=? AND account_id=?",(signal_id,account_id))
         if not signal: raise ValueError('unknown_signal')
-        if signal['action']!='TARGET_PORTFOLIO': return []
+        if signal['action']!='TARGET_PORTFOLIO' or signal['gate_status']=='RECORD_ONLY': return []
         equity=self._equity(account_id,quote_date); cfg=self.db.config(account_id)
         targets={r['symbol']:r for r in self.db.all("SELECT * FROM signal_positions WHERE signal_id=?",(signal_id,))}
         current={r['symbol']:r for r in self.db.all("SELECT * FROM positions WHERE account_id=?",(account_id,))}

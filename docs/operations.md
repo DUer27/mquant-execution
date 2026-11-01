@@ -13,4 +13,4 @@ python -m mquant_execution --db runtime/paper.db rebuild-balances --account pape
 
 ## API
 
-默认绑定 `127.0.0.1`：`GET /api/v1/health`、`POST /api/v1/accounts`、`GET /api/v1/accounts/{id}/dashboard`、`POST /api/v1/accounts/{id}/cash/deposit`、`POST .../cash/withdraw`、`POST .../signals/import`、`POST .../quotes/import`、`POST .../simulate`、`GET .../signals`、`orders`、`fills`、`cash-ledger`、`snapshots`、`POST .../rebuild`。接口仅本机使用，HTTP API 不提供 LIVE 下单。
+默认绑定 `127.0.0.1`：`GET /api/v1/health`、`POST /api/v1/accounts`、`GET /api/v1/accounts/{id}/dashboard`、`POST /api/v1/accounts/{id}/cash/deposit`、`POST .../cash/withdraw`、`POST .../signals/import`、`POST .../quotes/import`、`POST .../simulate`、`GET .../signals`、`orders`、`fills`、`cash-ledger`、`risk-events`、`audit-events`、`snapshots`、`POST .../rebuild`。接口仅本机使用，HTTP API 不提供 LIVE 下单。
