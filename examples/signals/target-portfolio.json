@@ -1,0 +1,33 @@
+{
+  "schema_version": "signal.v1",
+  "signal_id": "demo-signal-20260920",
+  "strategy_id": "demo_strategy",
+  "strategy_version": "demo-v1",
+  "sleeve_id": "paper",
+  "generated_at": "2026-09-19T08:00:00Z",
+  "signal_date": "2026-09-18",
+  "effective_at": "2026-09-21T09:30:00+08:00",
+  "expires_at": "2030-09-20T15:00:00+08:00",
+  "action": "TARGET_PORTFOLIO",
+  "gate_status": "ready_controlled_paper_watch",
+  "planned_weight": "0.10",
+  "cash_target_weight": "0.90",
+  "portfolio": [
+    {
+      "symbol": "510300",
+      "asset_type": "etf",
+      "target_weight": "0.10",
+      "target_quantity": null,
+      "rank": 1
+    }
+  ],
+  "provenance": {
+    "source": "example",
+    "data_policy": "synthetic_quotes",
+    "source_date": "2026-09-18",
+    "run_id": "demo"
+  },
+  "metadata": {
+    "purpose": "documentation"
+  }
+}

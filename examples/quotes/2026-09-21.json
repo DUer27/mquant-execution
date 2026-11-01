@@ -1,0 +1,14 @@
+{
+  "quote_date": "2026-09-21",
+  "quotes": {
+    "510300": {
+      "price": "4.0000",
+      "bid": "3.9990",
+      "ask": "4.0010",
+      "volume": "1000000",
+      "tradable": true,
+      "suspended": false,
+      "asset_type": "etf"
+    }
+  }
+}

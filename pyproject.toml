@@ -1,0 +1,5 @@
+[project]
+name = "mquant-execution"
+version = "0.1.0"
+description = "Standard-library SQLite paper execution simulator for signal.v1"
+requires-python = ">=3.10"
