@@ -73,6 +73,20 @@ class APIHandler(BaseHTTPRequestHandler):
                     result = (self.service.deposit if tail == 'deposit' else self.service.withdraw)(aid, data['amount'], data.get('reference', 'api')); return self._send(200, {'ok': result})
                 if action == 'signals' and tail == 'import':
                     row, status = self.service.import_signal_data(data['signal'], aid); return self._send(200, {'status': status, 'signal': row})
+                if action == 'signals' and tail == 'import-file':
+                    raw = data.get('file_name', '')
+                    content = data.get('content', '')
+                    if not raw or not content: raise ValueError('signal_file_name_and_content_required')
+                    import base64, tempfile
+                    suffix = '.zip' if raw.lower().endswith('.zip') else '.json'
+                    payload = base64.b64decode(content) if data.get('encoding') == 'base64' else content.encode()
+                    with tempfile.NamedTemporaryFile('wb', suffix=suffix, delete=False) as handle:
+                        handle.write(payload); name = handle.name
+                    try:
+                        row, status = self.service.import_signal(name, aid)
+                    finally:
+                        Path(name).unlink(missing_ok=True)
+                    return self._send(200, {'status': status, 'signal': row})
                 if action == 'quotes' and tail == 'import': return self._send(200, {'count': self._quotes_data(data)})
                 if action == 'replay':
                     from .replay import ReplayService
