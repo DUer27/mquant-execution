@@ -12,9 +12,9 @@
 <header><h1>只读行情 / 回放终端</h1><span class="tag">PAPER · READ ONLY</span></header>
 <div class="toolbar">
 <label class="field">账户<input id="account" value="paper"></label>
-<label class="field">代码<input id="symbol" value="510300" placeholder="510300 / 510300.XSHG"></label>
-<label class="field">开始日期<input id="start" type="date"></label>
-<label class="field">结束日期<input id="end" type="date"></label>
+<label class="field">代码<input id="symbol" value="300136" placeholder="300136 / 300136.XSHE"></label>
+<label class="field">开始日期<input id="start" type="date" value="2025-01-02"></label>
+<label class="field">结束日期<input id="end" type="date" value="2026-07-22"></label>
 <button id="refresh">刷新行情与账户</button><button id="replay">按日期回放</button><label class="field">导入 bars<input id="bars-file" type="file" accept=".csv,.json"></label><button id="import-bars">导入行情</button><label class="field">导入策略信号<input id="signal-file" type="file" accept=".json,.zip"></label><button id="import-signal">导入策略</button><span id="health" class="label">连接中…</span>
 </div>
 <section class="panel"><h2>资产概览</h2><div class="cards"><div class="card"><div class="label">现金</div><div class="value" id="cash">-</div></div><div class="card"><div class="label">持仓市值</div><div class="value" id="holdings">-</div></div><div class="card"><div class="label">净值 / 总资产</div><div class="value" id="equity">-</div></div><div class="card"><div class="label">累计盈亏</div><div class="value" id="pnl">-</div></div><div class="card"><div class="label">回放快照</div><div class="value" id="snapshot-count">-</div></div></div></section>

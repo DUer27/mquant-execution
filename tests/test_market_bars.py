@@ -70,6 +70,8 @@ class MarketBarTests(unittest.TestCase):
             result = ReplayService(service.db).replay('paper', '2025-01-02', '2025-01-03')
             self.assertEqual(result['executed'][0]['fills'], 1)
             self.assertEqual(len(result['snapshots']), 2)
+            second = ReplayService(service.db).replay('paper', '2025-01-02', '2025-01-03')
+            self.assertEqual(second['executed'], [])
             self.assertEqual(service.db.one('SELECT COUNT(*) FROM fills')[0], 1)
 
 

@@ -13,7 +13,7 @@ class ReplayService:
         snapshots=[]; executed=[]
         for as_of in dates:
             SettlementService(self.db).settle(account_id,as_of)
-            candidates = self.db.all("SELECT * FROM signals WHERE account_id=? AND action='TARGET_PORTFOLIO' AND signal_date<=? ORDER BY signal_date DESC, imported_at DESC", (account_id, as_of))
+            candidates = self.db.all("SELECT * FROM signals WHERE account_id=? AND action='TARGET_PORTFOLIO' AND status!='EXECUTED' AND signal_date<=? ORDER BY signal_date DESC, imported_at DESC", (account_id, as_of))
             signal = next((candidate for candidate in candidates
                            if str(candidate['effective_at'])[:10] <= as_of
                            and (not candidate['expires_at'] or str(candidate['expires_at'])[:10] >= as_of)), None)
