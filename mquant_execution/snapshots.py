@@ -1,12 +1,15 @@
 from .money import dec,text
 from .db import now
+from .market import market_bar
 class SnapshotService:
     def __init__(self,db): self.db=db
     def create(self,account_id,as_of):
         b=self.db.balance(account_id); holdings=dec(0); rows=[]
         for p in self.db.all("SELECT * FROM positions WHERE account_id=?",(account_id,)):
             q=self.db.one("SELECT price FROM quotes WHERE symbol=? AND quote_date=?",(p['symbol'],str(as_of)[:10]))
-            price=dec(q['price']) if q else dec(p['average_price']); value=dec(p['quantity'])*price; holdings+=value
+            bar=market_bar(self.db,p['symbol'],as_of)
+            price=dec(q['price']) if q else (dec(bar['close']) if bar else dec(p['average_price']))
+            value=dec(p['quantity'])*price; holdings+=value
             rows.append({'symbol':p['symbol'],'quantity':p['quantity'],'available_quantity':p['available_quantity'],'average_price':p['average_price'],'price':text(price),'market_value':text(value),'pnl':text(value-dec(p['quantity'])*dec(p['average_price']))})
         total=dec(b['available_cash'])+dec(b['pending_cash'])+holdings
         account=self.db.account(account_id); pnl=total-dec(account['initial_cash'])

@@ -1,73 +1,37 @@
 <!doctype html>
 <html lang="zh-CN">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width">
-  <title>Paper Execution Monitor</title>
-  <style>
-    body{font:15px system-ui,sans-serif;max-width:1100px;margin:2rem auto;padding:0 1rem;color:#17202a}
-    header{display:flex;justify-content:space-between;align-items:center;gap:1rem}
-    section{border:1px solid #ddd;border-radius:8px;padding:1rem;margin:1rem 0;overflow:auto}
-    table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #eee;padding:.45rem;text-align:left;vertical-align:top}
-    code{background:#f2f2f2;padding:.15rem .3rem}pre{white-space:pre-wrap}
-    .empty{color:#777;text-align:center}
-  </style>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Paper Market Terminal</title>
+<style>
+:root{color-scheme:dark;--bg:#0d1422;--panel:#121d2d;--line:#26354b;--text:#dce7f5;--muted:#8da1ba;--up:#38c98a;--down:#ed7180;--accent:#62a7ff}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px system-ui,-apple-system,sans-serif}main{max-width:1400px;margin:auto;padding:18px}header{display:flex;justify-content:space-between;align-items:center;gap:16px}h1{font-size:22px;margin:0}h2{font-size:15px;margin:0 0 12px}.tag{color:var(--accent);border:1px solid var(--accent);border-radius:4px;padding:3px 7px;font-size:11px}.toolbar,.panel{background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:13px;margin:14px 0}.toolbar{display:flex;flex-wrap:wrap;gap:9px;align-items:end}.field{display:flex;flex-direction:column;gap:4px;color:var(--muted);font-size:12px}input{background:#0a111d;border:1px solid var(--line);border-radius:4px;color:var(--text);padding:7px}button{background:#1c3c66;border:1px solid #386da9;color:#fff;padding:8px 14px;border-radius:4px;cursor:pointer}button:hover{background:#28558c}.cards{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}.card{background:#0c1726;border:1px solid var(--line);padding:12px;border-radius:5px}.label{color:var(--muted);font-size:12px}.value{font-size:19px;margin-top:5px}.chart{width:100%;height:370px;display:block;background:#0b1420;border:1px solid var(--line)}.chart-note{color:var(--muted);font-size:12px;margin-top:8px}table{border-collapse:collapse;width:100%;white-space:nowrap}th,td{text-align:left;border-bottom:1px solid var(--line);padding:7px 8px}th{color:var(--muted);font-weight:500}tbody tr:hover{background:#17263a}.scroll{overflow:auto;max-height:280px}.empty{color:var(--muted);text-align:center;padding:18px}section.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.up{color:var(--up)}.down{color:var(--down)}@media(max-width:850px){.cards{grid-template-columns:repeat(2,1fr)}section.grid{display:block}.panel{overflow:auto}}
+</style>
 </head>
-<body>
-  <header><h1>Paper Execution</h1><span id="health">loading…</span></header>
-  <p>只读监控页面；系统固定为 <code>PAPER</code>，网页不提供下单按钮。</p>
-  <label>账户 <input id="account" value="paper"></label>
-  <button id="refresh" type="button">刷新</button>
-
-  <section><h2>现金概览</h2><pre id="cash-summary">loading…</pre></section>
-  <section><h2>持仓</h2><table id="positions"><thead><tr><th>标的</th><th>数量</th><th>可卖</th><th>成本</th><th>最新价</th></tr></thead><tbody></tbody></table></section>
-  <section><h2>订单</h2><table id="orders"><thead><tr><th>订单</th><th>方向</th><th>标的</th><th>数量</th><th>状态</th><th>原因</th></tr></thead><tbody></tbody></table></section>
-  <section><h2>成交</h2><table id="fills"><thead><tr><th>成交</th><th>订单</th><th>方向</th><th>标的</th><th>数量</th><th>价格</th><th>费用</th><th>时间</th></tr></thead><tbody></tbody></table></section>
-  <section><h2>资金流水</h2><table id="cash-ledger"><thead><tr><th>编号</th><th>类型</th><th>金额</th><th>可用变化</th><th>可提现变化</th><th>待结算变化</th><th>时间</th></tr></thead><tbody></tbody></table></section>
-  <section><h2>信号</h2><table id="signals"><thead><tr><th>信号</th><th>策略</th><th>动作</th><th>准入</th><th>信号日期</th><th>状态</th><th>导入时间</th></tr></thead><tbody></tbody></table></section>
-  <section><h2>风控</h2><table id="risk-events"><thead><tr><th>编号</th><th>级别</th><th>原因</th><th>信号</th><th>订单</th><th>时间</th></tr></thead><tbody></tbody></table></section>
-  <section><h2>审计</h2><table id="audit-events"><thead><tr><th>编号</th><th>事件</th><th>引用类型</th><th>引用</th><th>详情</th><th>时间</th></tr></thead><tbody></tbody></table></section>
-  <section><h2>快照</h2><table id="snapshots"><thead><tr><th>日期</th><th>可用现金</th><th>待结算</th><th>可提现</th><th>持仓市值</th><th>总资产</th><th>盈亏</th></tr></thead><tbody></tbody></table></section>
-
-  <script>
-    const $ = selector => document.querySelector(selector);
-    const esc = value => String(value ?? '').replace(/[&<>]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[char]));
-    const format = value => typeof value === 'object' && value !== null ? JSON.stringify(value) : String(value ?? '');
-    function fillTable(selector, rows, columns) {
-      const body = $(selector + ' tbody');
-      if (!rows.length) {
-        body.innerHTML = `<tr><td class="empty" colspan="${columns.length}">暂无记录</td></tr>`;
-        return;
-      }
-      body.innerHTML = rows.map(row => `<tr>${columns.map(column => `<td>${esc(format(row[column]))}</td>`).join('')}</tr>`).join('');
-    }
-    async function load() {
-      const account = encodeURIComponent($('#account').value);
-      const response = await fetch('/api/v1/accounts/' + account + '/dashboard');
-      if (!response.ok) {
-        $('#cash-summary').textContent = '账户不存在';
-        return;
-      }
-      const data = await response.json();
-      $('#cash-summary').textContent = JSON.stringify({
-        account: data.account,
-        cash: data.cash,
-        pending: data.pending,
-        withdrawable: data.withdrawable,
-        total_assets: data.total_assets
-      }, null, 2);
-      fillTable('#positions', data.positions || [], [['symbol'],['quantity'],['available_quantity'],['average_price'],['price']].map(x => x[0]));
-      fillTable('#orders', data.orders || [], ['order_id','side','symbol','quantity','status','reason']);
-      fillTable('#fills', data.fills || [], ['fill_id','order_id','side','symbol','quantity','price','fee','executed_at']);
-      fillTable('#cash-ledger', data.cash_ledger || [], ['entry_id','entry_type','amount','available_delta','withdrawable_delta','pending_delta','created_at']);
-      fillTable('#signals', data.signals || [], ['signal_id','strategy_id','action','gate_status','signal_date','status','imported_at']);
-      fillTable('#risk-events', data.risk_events || [], ['event_id','level','reason','signal_id','order_id','created_at']);
-      fillTable('#audit-events', data.audit_events || [], ['event_id','event_type','reference_type','reference_id','details_json','created_at']);
-      fillTable('#snapshots', data.snapshots || [], ['as_of','available_cash','pending_cash','withdrawable_cash','holdings_value','total_assets','pnl']);
-    }
-    $('#refresh').addEventListener('click', load);
-    fetch('/api/v1/health').then(response => response.json()).then(data => { $('#health').textContent = data.mode; }).catch(() => { $('#health').textContent = 'offline'; });
-    load().catch(() => { $('#cash-summary').textContent = '无法读取账户'; });
-  </script>
-</body>
-</html>
+<body><main>
+<header><h1>只读行情 / 回放终端</h1><span class="tag">PAPER · READ ONLY</span></header>
+<div class="toolbar">
+<label class="field">账户<input id="account" value="paper"></label>
+<label class="field">代码<input id="symbol" value="510300" placeholder="510300 / 510300.XSHG"></label>
+<label class="field">开始日期<input id="start" type="date"></label>
+<label class="field">结束日期<input id="end" type="date"></label>
+<button id="refresh">刷新行情与账户</button><button id="replay">按日期回放</button><label class="field">导入 bars<input id="bars-file" type="file" accept=".csv,.json"></label><button id="import-bars">导入行情</button><span id="health" class="label">连接中…</span>
+</div>
+<section class="panel"><h2>资产概览</h2><div class="cards"><div class="card"><div class="label">现金</div><div class="value" id="cash">-</div></div><div class="card"><div class="label">持仓市值</div><div class="value" id="holdings">-</div></div><div class="card"><div class="label">净值 / 总资产</div><div class="value" id="equity">-</div></div><div class="card"><div class="label">累计盈亏</div><div class="value" id="pnl">-</div></div><div class="card"><div class="label">回放快照</div><div class="value" id="snapshot-count">-</div></div></div></section>
+<section class="panel"><h2>行情 K 线 · OHLC / 成交量</h2><canvas id="market-chart" class="chart" width="1200" height="370"></canvas><div id="chart-note" class="chart-note">输入代码和日期区间后刷新。蜡烛为真实 market_bars，成交标记显示于对应日期。</div></section>
+<section class="grid"><section class="panel"><h2>持仓</h2><div class="scroll"><table id="positions"><thead><tr><th>标的</th><th>数量</th><th>可卖</th><th>成本</th><th>市价</th><th>市值</th></tr></thead><tbody></tbody></table></div></section>
+<section class="panel"><h2>回放快照 / 净值曲线</h2><canvas id="equity-chart" class="chart" width="600" height="230"></canvas><div class="scroll"><table id="snapshots"><thead><tr><th>日期</th><th>总资产</th><th>持仓市值</th><th>盈亏</th></tr></thead><tbody></tbody></table></div></section></section>
+<section class="grid"><section class="panel"><h2>订单</h2><div class="scroll"><table id="orders"><thead><tr><th>订单</th><th>方向</th><th>标的</th><th>数量</th><th>状态</th><th>日期</th></tr></thead><tbody></tbody></table></div></section><section class="panel"><h2>成交 / 买卖标记</h2><div class="scroll"><table id="fills"><thead><tr><th>日期</th><th>方向</th><th>标的</th><th>数量</th><th>价格</th><th>费用</th></tr></thead><tbody></tbody></table></div></section></section>
+<section class="grid"><section class="panel"><h2>资金流水</h2><div class="scroll"><table id="cash-ledger"><thead><tr><th>类型</th><th>金额</th><th>可用变化</th><th>时间</th></tr></thead><tbody></tbody></table></div></section><section class="panel"><h2>策略 markers</h2><div class="scroll"><table id="markers"><thead><tr><th>日期</th><th>策略</th><th>动作</th><th>状态</th></tr></thead><tbody></tbody></table></div></section></section>
+<script>
+const $=s=>document.querySelector(s), esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const val=(v)=>v==null?'':esc(v); function table(id,rows,cols){const body=$(id+' tbody');body.innerHTML=rows.length?rows.map(r=>'<tr>'+cols.map(c=>'<td>'+val(r[c])+'</td>').join('')+'</tr>').join(''):'<tr><td class="empty" colspan="'+cols.length+'">暂无记录</td></tr>'}
+function range(){let s=$('#start').value,e=$('#end').value;if(!s){s='2000-01-01'}if(!e){e='2999-12-31'}return {s,e}}
+function lineChart(canvas,values,color){const c=canvas.getContext('2d'),w=canvas.width=canvas.clientWidth*devicePixelRatio,h=canvas.height=canvas.clientHeight*devicePixelRatio;c.clearRect(0,0,w,h);if(!values.length)return;c.strokeStyle='#26354b';c.lineWidth=1;for(let i=1;i<5;i++){let y=i*h/5;c.beginPath();c.moveTo(0,y);c.lineTo(w,y);c.stroke()}let nums=values.map(x=>Number(x.value));let min=Math.min(...nums),max=Math.max(...nums);if(min===max)max=min+1;c.strokeStyle=color;c.lineWidth=2;c.beginPath();values.forEach((x,i)=>{let px=values.length===1?w/2:i*w/(values.length-1),py=h-(Number(x.value)-min)/(max-min)*h*.82-h*.08;i?c.lineTo(px,py):c.moveTo(px,py)});c.stroke()}
+function candles(bars,fills){const canvas=$('#market-chart'),c=canvas.getContext('2d'),w=canvas.width=canvas.clientWidth*devicePixelRatio,h=canvas.height=canvas.clientHeight*devicePixelRatio;c.clearRect(0,0,w,h);if(!bars.length)return;let max=Math.max(...bars.map(x=>Number(x.high))),min=Math.min(...bars.map(x=>Number(x.low))),volMax=Math.max(...bars.map(x=>Number(x.volume)||0),1),plot=h*.75,step=w/bars.length;const y=v=>plot-(v-min)/(max-min||1)*plot*.88; c.strokeStyle='#26354b';c.lineWidth=1;for(let i=1;i<5;i++){let gy=i*plot/5;c.beginPath();c.moveTo(0,gy);c.lineTo(w,gy);c.stroke()}const code=v=>String(v||'').replace(/\.(XSHE|XSHG)$/i,'');bars.forEach((b,i)=>{let x=(i+.5)*step,open=y(Number(b.open)),close=y(Number(b.close)),high=y(Number(b.high)),low=y(Number(b.low)),up=Number(b.close)>=Number(b.open);c.strokeStyle=c.fillStyle=up?'#38c98a':'#ed7180';c.beginPath();c.moveTo(x,high);c.lineTo(x,low);c.stroke();c.fillRect(x-step*.28,Math.min(open,close),step*.56,Math.max(1,Math.abs(open-close)));c.globalAlpha=.3;c.fillRect(x-step*.3,plot+(h-plot)*(1-(Number(b.volume)||0)/volMax),step*.6,(h-plot)*(Number(b.volume)||0)/volMax);c.globalAlpha=1;fills.filter(f=>f.trade_date===b.bar_date&&code(f.symbol)===code(b.symbol)).forEach(f=>{c.fillStyle=f.side==='BUY'?'#62a7ff':'#ffca66';c.beginPath();c.arc(x,f.side==='BUY'?close+10:close-10,4,0,Math.PI*2);c.fill()})})}
+async function load(){const {s,e}=range(),symbol=encodeURIComponent($('#symbol').value),account=encodeURIComponent($('#account').value);const [barsR,dashR]=await Promise.all([fetch('/api/v1/market/bars?symbol='+symbol+'&start='+s+'&end='+e),fetch('/api/v1/accounts/'+account+'/dashboard')]);if(!dashR.ok)throw Error('账户不存在');const bars=await barsR.json(),d=await dashR.json();$('#cash').textContent=d.cash||'-';$('#holdings').textContent=d.holdings_value||'-';$('#equity').textContent=d.total_assets||'-';$('#pnl').textContent=d.pnl||'-';$('#snapshot-count').textContent=(d.snapshots||[]).length;table('#positions',d.positions||[],['symbol','quantity','available_quantity','average_price','price','market_value']);table('#orders',d.orders||[],['order_id','side','symbol','quantity','status','quote_date']);table('#fills',d.fills||[],['trade_date','side','symbol','quantity','price','fee']);table('#cash-ledger',d.cash_ledger||[],['entry_type','amount','available_delta','created_at']);table('#markers',d.strategy_markers||[],['signal_date','strategy_id','action','status']);table('#snapshots',d.snapshots||[],['as_of','total_assets','holdings_value','pnl']);candles(bars,d.fills||[]);lineChart($('#equity-chart'),(d.snapshots||[]).slice().reverse().map(x=>({value:x.total_assets})), '#62a7ff');$('#chart-note').textContent=bars.length+' 根 market_bars · 黄色卖出/蓝色买入标记 · '+(bars[0]?.bar_date||'')+' 至 '+(bars.at(-1)?.bar_date||'')}
+$('#refresh').onclick=()=>load().catch(e=>$('#chart-note').textContent=e.message);
+$('#replay').onclick=async()=>{try{const {s,e}=range(),account=encodeURIComponent($('#account').value);const r=await fetch('/api/v1/accounts/'+account+'/replay',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({start:s,end:e})});if(!r.ok)throw Error((await r.json()).error||'回放失败');const data=await r.json();$('#chart-note').textContent='回放完成：'+data.trading_days.length+' 个交易日，生成 '+data.snapshots.length+' 个账户快照。';await load()}catch(e){$('#chart-note').textContent=e.message}};
+$('#import-bars').onclick=async()=>{try{const file=$('#bars-file').files[0];if(!file)throw Error('请先选择 CSV 或 JSON 行情文件');const body=file.name.toLowerCase().endsWith('.csv')?{csv_text:await file.text()}:{bars:JSON.parse(await file.text())};const r=await fetch('/api/v1/market/bars/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(!r.ok)throw Error((await r.json()).error||'行情导入失败');const data=await r.json();$('#chart-note').textContent='行情导入完成：'+data.count+' 根 bars。';await load()}catch(e){$('#chart-note').textContent=e.message}};
+fetch('/api/v1/health').then(r=>r.json()).then(x=>$('#health').textContent=x.mode).catch(()=>$('#health').textContent='offline');load().catch(()=>$('#chart-note').textContent='无法读取账户或行情');
+</script></main></body></html>

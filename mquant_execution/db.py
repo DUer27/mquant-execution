@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from .money import dec, text
 from .config import AccountConfig
+from .market import market_bar
 
 
 def now(): return datetime.now(timezone.utc).isoformat()
@@ -95,8 +96,14 @@ class Database:
                     average=sum((int(r['quantity'])*dec(r['unit_cost']) for r in lots),dec(0))/quantity
                     self.execute("INSERT INTO positions(account_id,symbol,quantity,available_quantity,average_price,updated_at) VALUES (?,?,?,?,?,?) ON CONFLICT(account_id,symbol) DO UPDATE SET quantity=excluded.quantity,available_quantity=excluded.available_quantity,average_price=excluded.average_price,updated_at=excluded.updated_at",(account_id,symbol,quantity,available_quantity,text(average),now()))
                 else: self.execute("DELETE FROM positions WHERE account_id=? AND symbol=?",(account_id,symbol))
-            positions=self.all("SELECT p.symbol,p.quantity,p.average_price,q.price FROM positions p LEFT JOIN quotes q ON q.symbol=p.symbol AND q.quote_date=(SELECT MAX(quote_date) FROM quotes WHERE symbol=p.symbol) WHERE p.account_id=?",(account_id,))
-            total=available+pending+sum((dec(r['quantity'])*(dec(r['price']) if r['price'] is not None else dec(r['average_price'])) for r in positions),dec(0))
+            positions=self.all("SELECT p.symbol,p.quantity,p.average_price,COALESCE(q.price,m.close) AS market_price FROM positions p LEFT JOIN quotes q ON q.symbol=p.symbol AND q.quote_date=(SELECT MAX(quote_date) FROM quotes WHERE symbol=p.symbol) LEFT JOIN market_bars m ON m.symbol=p.symbol AND m.bar_date=(SELECT MAX(bar_date) FROM market_bars WHERE symbol=p.symbol) WHERE p.account_id=?",(account_id,))
+            total=available+pending
+            for position in positions:
+                price=position['market_price']
+                if price is None:
+                    bar=market_bar(self,position['symbol'],None)
+                    price=bar['close'] if bar else position['average_price']
+                total += dec(position['quantity'])*dec(price)
             self.execute("UPDATE account_balances SET available_cash=?,withdrawable_cash=?,pending_cash=?,frozen_cash=0,total_assets=?,updated_at=? WHERE account_id=?",(text(available),text(withdrawable),text(pending),text(total),now(),account_id))
             self.audit(account_id,'BALANCES_REBUILT','account',account_id,{'available_cash':text(available),'pending_cash':text(pending)})
         return self.balance(account_id)

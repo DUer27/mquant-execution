@@ -1,6 +1,8 @@
 import csv
 import io
 import json
+from .market import latest_market_bar
+from .money import dec, text
 
 
 class Reports:
@@ -11,42 +13,39 @@ class Reports:
         account = dict(self.db.account(account_id))
         balance = dict(self.db.balance(account_id))
         report = dict(balance)
-        report.update({
-            'account_id': account_id,
-            'account': account,
-            # Keep concise aliases for dashboard consumers while retaining the
-            # original balance column names for backwards compatibility.
-            'cash': balance['available_cash'],
-            'pending': balance['pending_cash'],
-            'withdrawable': balance['withdrawable_cash'],
-        })
-        report['positions'] = [dict(row) for row in self.db.all(
-            "SELECT p.*, q.price FROM positions p LEFT JOIN quotes q ON q.symbol=p.symbol "
-            "AND q.quote_date=(SELECT MAX(quote_date) FROM quotes WHERE symbol=p.symbol) "
-            "WHERE p.account_id=?", (account_id,)
-        )]
-        report['orders'] = [dict(row) for row in self.db.all(
-            "SELECT * FROM orders WHERE account_id=? ORDER BY created_at DESC", (account_id,)
-        )]
-        report['fills'] = [dict(row) for row in self.db.all(
-            "SELECT * FROM fills WHERE account_id=? ORDER BY executed_at DESC", (account_id,)
-        )]
-        report['cash_ledger'] = [dict(row) for row in self.db.all(
-            "SELECT * FROM cash_ledger WHERE account_id=? ORDER BY entry_id DESC", (account_id,)
-        )]
-        report['signals'] = [dict(row) for row in self.db.all(
-            "SELECT * FROM signals WHERE account_id=? ORDER BY imported_at DESC", (account_id,)
-        )]
-        report['risk_events'] = [dict(row) for row in self.db.all(
-            "SELECT * FROM risk_events WHERE account_id=? ORDER BY event_id DESC", (account_id,)
-        )]
-        report['snapshots'] = [dict(row) for row in self.db.all(
-            "SELECT * FROM account_snapshots WHERE account_id=? ORDER BY as_of DESC", (account_id,)
-        )]
-        report['audit_events'] = [dict(row) for row in self.db.all(
-            "SELECT * FROM audit_events WHERE account_id=? ORDER BY event_id DESC", (account_id,)
-        )]
+        report.update({'account_id': account_id, 'account': account,
+                       'cash': balance['available_cash'], 'pending': balance['pending_cash'],
+                       'withdrawable': balance['withdrawable_cash']})
+        report['positions'] = []
+        holdings = dec(0)
+        for row in self.db.all("SELECT * FROM positions WHERE account_id=?", (account_id,)):
+            position = dict(row)
+            quote = self.db.one("SELECT price FROM quotes WHERE symbol=? ORDER BY quote_date DESC LIMIT 1", (row['symbol'],))
+            bar = latest_market_bar(self.db, row['symbol'])
+            position['price'] = quote['price'] if quote else (bar['close'] if bar else None)
+            if position['price'] is not None:
+                position['market_value'] = text(dec(position['quantity']) * dec(position['price']))
+                holdings += dec(position['market_value'])
+            report['positions'].append(position)
+        report['holdings_value'] = text(holdings)
+        report['orders'] = [dict(row) for row in self.db.all("SELECT * FROM orders WHERE account_id=? ORDER BY created_at DESC", (account_id,))]
+        report['fills'] = [dict(row) for row in self.db.all("SELECT * FROM fills WHERE account_id=? ORDER BY executed_at DESC", (account_id,))]
+        report['transactions'] = report['fills']
+        report['cash_ledger'] = [dict(row) for row in self.db.all("SELECT * FROM cash_ledger WHERE account_id=? ORDER BY entry_id DESC", (account_id,))]
+        report['signals'] = [dict(row) for row in self.db.all("SELECT * FROM signals WHERE account_id=? ORDER BY imported_at DESC", (account_id,))]
+        report['strategy_markers'] = [{'signal_id': row['signal_id'], 'strategy_id': row['strategy_id'], 'signal_date': row['signal_date'], 'action': row['action'], 'status': row['status']} for row in report['signals']]
+        report['risk_events'] = [dict(row) for row in self.db.all("SELECT * FROM risk_events WHERE account_id=? ORDER BY event_id DESC", (account_id,))]
+        report['snapshots'] = [dict(row) for row in self.db.all("SELECT * FROM account_snapshots WHERE account_id=? ORDER BY as_of DESC", (account_id,))]
+        report['audit_events'] = [dict(row) for row in self.db.all("SELECT * FROM audit_events WHERE account_id=? ORDER BY event_id DESC", (account_id,))]
         return report
+
+    def equity(self, account_id):
+        account = self.db.account(account_id)
+        snapshot = self.db.one("SELECT * FROM account_snapshots WHERE account_id=? ORDER BY as_of DESC LIMIT 1", (account_id,))
+        balance = self.db.balance(account_id)
+        result = dict(snapshot) if snapshot else dict(balance)
+        result.update({'account_id': account_id, 'initial_cash': account['initial_cash'], 'mode': 'PAPER'})
+        return result
 
     def export(self, account_id, fmt='json'):
         data = self.dashboard(account_id)

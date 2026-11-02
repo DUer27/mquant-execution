@@ -23,15 +23,13 @@ class ExecutionService:
     def import_signal(self,path,account): return SignalImporter(self.db).import_file(path,account)
     def import_signal_data(self,data,account): return SignalImporter(self.db).import_data(data,account)
     def import_quotes(self,path): return SignalImporter(self.db).import_quotes(path)
+    def import_bars(self,rows): return SignalImporter(self.db).import_bars(rows)
+    def import_bars_csv(self,csv_text): return SignalImporter(self.db).import_bars_csv(csv_text)
+    def import_bars_file(self,path): return SignalImporter(self.db).import_bars_file(path)
     def simulate(self,account,signal,as_of):
         run_id='run-'+uuid.uuid4().hex
         self.db.execute("INSERT INTO simulation_runs(run_id,account_id,signal_id,as_of,status,parameters_json,created_at) VALUES (?,?,?,?,?,?,?)",(run_id,account,signal,str(as_of),"RUNNING",json.dumps({'mode':'PAPER'},sort_keys=True),now()))
         try:
-            SettlementService(self.db).settle(account,as_of)
-            orders=RebalancePlanner(self.db).plan(account,signal,str(as_of)[:10])
-            result=ExecutionSimulator(self.db).execute(account,signal,as_of)
-            result['planned_orders']=len(orders); result['snapshot']=SnapshotService(self.db).create(account,str(as_of)[:10])
-            self.db.execute("UPDATE simulation_runs SET status='SUCCEEDED',result_json=? WHERE run_id=?",(json.dumps(result,default=str,sort_keys=True),run_id))
-            return result
+            SettlementService(self.db).settle(account,as_of); orders=RebalancePlanner(self.db).plan(account,signal,str(as_of)[:10]); result=ExecutionSimulator(self.db).execute(account,signal,as_of); result['planned_orders']=len(orders); result['snapshot']=SnapshotService(self.db).create(account,str(as_of)[:10]); self.db.execute("UPDATE simulation_runs SET status='SUCCEEDED',result_json=? WHERE run_id=?",(json.dumps(result,default=str,sort_keys=True),run_id)); return result
         except Exception as exc:
             self.db.execute("UPDATE simulation_runs SET status='FAILED',error=? WHERE run_id=?",(str(exc),run_id)); raise

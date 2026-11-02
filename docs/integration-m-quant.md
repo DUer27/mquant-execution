@@ -1,14 +1,25 @@
 # 与 M-quant 集成
 
-M-quant 侧生成并下载 `signal.v1` JSON 或 ZIP；它不 import 本仓库，也不读取本仓库的 SQLite。把导出文件复制到本机后执行：
+M-quant 侧仍只生成并下载 `signal.v1` JSON 或 ZIP；它不 import 本仓库，也不读取本仓库的 SQLite。不要修改 M-quant。把导出文件和行情文件复制到本机后执行：
 
 ```bash
-python -m mquant_execution --db runtime/paper.db import-signal /path/to/signal.json --account paper
-python -m mquant_execution --db runtime/paper.db import-quotes examples/quotes/2026-09-21.json
-python -m mquant_execution --db runtime/paper.db simulate --account paper --signal <signal_id> --as-of 2026-09-21
+python -m mquant_execution --db runtime/paper.db import-bars /path/to/pressure-test.csv
+python -m mquant_execution --db runtime/paper.db import-signal /path/to/target-portfolio.json --account paper
+python -m mquant_execution --db runtime/paper.db replay --account paper --start 2026-01-01 --end 2026-12-31
 python -m mquant_execution --db runtime/paper.db status --account paper
 ```
 
-相同 `signal_id` 重复导入返回 `DUPLICATE`；重复执行不会产生第二个订单/成交。行情快照必须包含日期和价格，可选买一、卖一、成交量、停牌/可交易状态及资产类型。平台先按目标权重和总权益计算整手目标数量，先卖后买，再以行情快照模拟成交。查看 `status`、`orders`、`fills`、`cashflow` 或 `export --format csv` 进行复核。
+## 压力测试 CSV 转换
 
-若准入状态为 `RECORD_ONLY` 或动作是 `RECORD_ONLY`，信号被保存并审计但不会产生订单。导入前检查来源、数据政策、信号有效期；示例行情是合成数据，不代表真实市场。
+支持字段：`code,date,open,close,high,low,volume,amount,security,source,adjust,name,prev_close,tradable`。AkShare 单标的 CSV 的 `date,code,open,close,high,low,volume,amount` 直接支持；JSON 为 bars 数组或 `{bars:[...]}`。导入映射如下：`code→symbol`、`date→bar_date`、OHLCV/amount 为 Decimal 文本，元数据写入同名字段。裸六位代码自动补 `.XSHE` 或 `.XSHG`，有后缀的代码保持不变。`market_bars` 以 symbol/date upsert，因此重复导入不会产生重复 bars。
+
+```bash
+python -m mquant_execution --db runtime/paper.db import-bars akshare.csv
+python -m mquant_execution --db runtime/paper.db import-bars bars.json
+```
+
+也可以使用 `POST /api/v1/market/bars/import` 的 JSON `csv_text` 或 `bars` 字段。服务器只接受当前工作目录内的可选 `file/path`，不读取任意绝对路径。用 `GET /api/v1/market/bars?symbol=510300&start=...&end=...` 检查结果。
+
+## PAPER 回放规则
+
+`replay` 只处理 `market_bars` 中的工作日，按日期加载账户中有效的 `TARGET_PORTFOLIO` 信号，调用现有 PAPER planner/executor，逐日写 `account_snapshots`。旧的 `quotes` 快照仍优先用于成交，bars close 是行情与估值兜底。已成交信号不会再次产生订单/成交；重复运行只更新同一天 snapshot。该命令明确 PAPER-only，不连接券商，也没有下单按钮。
