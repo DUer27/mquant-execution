@@ -1,6 +1,7 @@
 # 与 M-quant 集成
 
-M-quant 侧仍只生成并下载 `signal.v1` JSON 或 ZIP；它不 import 本仓库，也不读取本仓库的 SQLite。不要修改 M-quant。把导出文件和行情文件复制到本机后执行：
+M-quant 侧仍只生成并下载 `signal.v1` JSON 或 ZIP；它不 import 本仓库，也不读取本仓库的 SQLite。不要修改 M-quant。把导出文件和行情文件复制到本机后执行。网页端也可以在 8080 页面的“导入策略信号”文件选择器中直接选择 M-quant 导出的 `.json` 或 `.zip`；导入只保存信号并按 `action` 决定是否生成订单。
+
 
 ```bash
 python -m mquant_execution --db runtime/paper.db import-bars /path/to/pressure-test.csv
@@ -8,6 +9,21 @@ python -m mquant_execution --db runtime/paper.db import-signal /path/to/target-p
 python -m mquant_execution --db runtime/paper.db replay --account paper --start 2026-01-01 --end 2026-12-31
 python -m mquant_execution --db runtime/paper.db status --account paper
 ```
+
+## API 文件导入
+
+```text
+POST /api/v1/accounts/{account_id}/signals/import-file
+Content-Type: application/json
+```
+
+请求体使用 base64：
+
+```json
+{"file_name":"m-quant-paper-signal.zip","content":"<base64>","encoding":"base64"}
+```
+
+支持 M-quant 导出的 JSON 或 ZIP；重复 `signal_id` 返回 `DUPLICATE`。`RECORD_ONLY` 信号只入库审计，不创建订单。
 
 ## 压力测试 CSV 转换
 

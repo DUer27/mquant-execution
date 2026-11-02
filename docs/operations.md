@@ -24,4 +24,4 @@ CSV 压力测试字段映射为 `code→symbol,date→bar_date`，OHLC、`volume
 
 ## API
 
-默认绑定 `127.0.0.1`：`GET /api/v1/health`、`GET /api/v1/market/bars?symbol=&start=&end=`、`POST /api/v1/market/bars/import`、`POST /api/v1/accounts`、`GET /api/v1/accounts/{id}/dashboard`、`GET /api/v1/accounts/{id}/equity`、`POST .../cash/deposit`、`POST .../cash/withdraw`、`POST .../signals/import`、`POST .../quotes/import`、`POST .../simulate`、`GET .../signals`、`orders`、`fills`、`transactions`、`cash-ledger`、`risk-events`、`audit-events`、`snapshots`、`POST .../rebuild`。接口仅本机使用，HTTP API 不提供 LIVE 或网页下单。
+默认绑定 `127.0.0.1`：`GET /api/v1/health`、`GET /api/v1/market/bars?symbol=&start=&end=`、`POST /api/v1/market/bars/import`、`POST /api/v1/accounts`、`GET /api/v1/accounts/{id}/dashboard`、`GET /api/v1/accounts/{id}/equity`、`POST .../cash/deposit`、`POST .../cash/withdraw`、`POST .../signals/import`、`POST .../signals/import-file`（JSON/ZIP 文件内容）、`POST .../quotes/import`、`POST .../simulate`、`GET .../signals`、`orders`、`fills`、`transactions`、`cash-ledger`、`risk-events`、`audit-events`、`snapshots`、`POST .../rebuild`。接口仅本机使用，HTTP API 不提供 LIVE 或网页下单。

@@ -103,6 +103,25 @@ class APITests(unittest.TestCase):
                 server.shutdown()
                 server.server_close()
 
+    def test_signal_file_import_endpoint(self):
+        import base64
+        with tempfile.TemporaryDirectory() as directory:
+            service = ExecutionService(Database(Path(directory) / 'file-import.db'))
+            service.db.create_account('paper')
+            server, base = self._server(service)
+            try:
+                payload = {
+                    'file_name': 'signal.json',
+                    'content': base64.b64encode(json.dumps(self._signal('RECORD_ONLY', 'file-signal')).encode()).decode(),
+                    'encoding': 'base64',
+                }
+                result = self._post(base, '/api/v1/accounts/paper/signals/import-file', payload)
+                self.assertEqual(result['status'], 'IMPORTED')
+                self.assertEqual(result['signal']['signal_id'], 'file-signal')
+            finally:
+                server.shutdown()
+                server.server_close()
+
     def test_record_only_signal_has_no_orders(self):
         with tempfile.TemporaryDirectory() as directory:
             service = ExecutionService(Database(Path(directory) / 'a.db'))
