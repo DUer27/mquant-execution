@@ -12,7 +12,11 @@ class SnapshotService:
             value=dec(p['quantity'])*price; holdings+=value
             rows.append({'symbol':p['symbol'],'quantity':p['quantity'],'available_quantity':p['available_quantity'],'average_price':p['average_price'],'price':text(price),'market_value':text(value),'pnl':text(value-dec(p['quantity'])*dec(p['average_price']))})
         total=dec(b['available_cash'])+dec(b['pending_cash'])+holdings
-        account=self.db.account(account_id); pnl=total-dec(account['initial_cash'])
+        account=self.db.account(account_id)
+        deposits=sum((dec(row['available_delta']) for row in self.db.all("SELECT available_delta FROM cash_ledger WHERE account_id=? AND entry_type='DEPOSIT'", (account_id,))), dec('0'))
+        withdrawals=sum((dec(row['available_delta']) for row in self.db.all("SELECT available_delta FROM cash_ledger WHERE account_id=? AND entry_type='WITHDRAWAL'", (account_id,))), dec('0'))
+        capital_base=max(dec(account['initial_cash']), deposits + withdrawals)
+        pnl=total-capital_base
         previous=self.db.one("SELECT MAX(total_assets) AS peak FROM account_snapshots WHERE account_id=?",(account_id,)); peak=max(total,dec(previous['peak']) if previous and previous['peak'] is not None else total)
         drawdown=(total-peak) if peak else dec(0)
         self.db.execute("UPDATE account_balances SET total_assets=?,updated_at=? WHERE account_id=?",(text(total),now(),account_id))

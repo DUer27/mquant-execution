@@ -27,7 +27,7 @@ class RiskEngine:
         self.db.audit(account_id,'RISK_REJECTED','order',order_id,{'reason':reason,**(details or {})})
     def check(self, account_id, signal, order, quote, equity, turnover, as_of):
         cfg=self.db.config(account_id); q=quote
-        if signal['gate_status'] not in ('ready','ready_controlled_paper_watch','PAPER'): return 'gate_not_approved'
+        if signal['gate_status'] not in ('ready','ready_controlled_paper_watch','ready_for_controlled_paper_watch','ready_local_paper_watch','PAPER'): return 'gate_not_approved'
         if signal['action'] != 'TARGET_PORTFOLIO': return 'record_only'
         if signal['expires_at'] and _as_of_instant(signal['expires_at']) <= _as_of_instant(as_of): return 'signal_expired'
         if not _is_valid_execution_time(as_of): return 'outside_trading_session'

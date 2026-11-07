@@ -32,6 +32,14 @@ class Reports:
         report['fills'] = [dict(row) for row in self.db.all("SELECT * FROM fills WHERE account_id=? ORDER BY executed_at DESC", (account_id,))]
         report['transactions'] = report['fills']
         report['cash_ledger'] = [dict(row) for row in self.db.all("SELECT * FROM cash_ledger WHERE account_id=? ORDER BY entry_id DESC", (account_id,))]
+        total_assets = dec(balance['available_cash']) + dec(balance['pending_cash']) + holdings
+        deposited = sum((dec(row['available_delta']) for row in report['cash_ledger'] if row['entry_type'] == 'DEPOSIT'), dec('0'))
+        withdrawn = sum((dec(row['available_delta']) for row in report['cash_ledger'] if row['entry_type'] == 'WITHDRAWAL'), dec('0'))
+        initial_cash = max(dec(account['initial_cash']), deposited + withdrawn)
+        report['total_assets'] = text(total_assets)
+        report['initial_cash'] = text(initial_cash)
+        report['pnl'] = text(total_assets - initial_cash)
+        report['drawdown'] = text(total_assets - initial_cash if total_assets < initial_cash else dec('0'))
         report['signals'] = [dict(row) for row in self.db.all("SELECT * FROM signals WHERE account_id=? ORDER BY imported_at DESC", (account_id,))]
         report['strategy_markers'] = [{'signal_id': row['signal_id'], 'strategy_id': row['strategy_id'], 'signal_date': row['signal_date'], 'action': row['action'], 'status': row['status']} for row in report['signals']]
         report['risk_events'] = [dict(row) for row in self.db.all("SELECT * FROM risk_events WHERE account_id=? ORDER BY event_id DESC", (account_id,))]
