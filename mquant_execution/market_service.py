@@ -1,4 +1,3 @@
-"""Transactional PAPER live quote persistence and freshness state."""
 from __future__ import annotations
 
 import json
@@ -53,15 +52,27 @@ class MarketService:
         symbols = sorted(set(self._bare(x) for x in symbols if str(x).strip()))
         if not symbols:
             raise ValueError('market_symbols_required')
-        key = idempotency_key or 'market-sync:' + ','.join(symbols)
-        old = self.db.one('SELECT * FROM market_sync_runs WHERE idempotency_key=?', (key,))
+        # A caller-provided key is an explicit idempotency contract. Without a
+        # key, every refresh is a new source request, which is required for
+        # real-time polling and prevents a prior success from being replayed.
+        key = idempotency_key or 'market-sync:' + uuid.uuid4().hex
+        old = self.db.one('SELECT * FROM market_sync_runs WHERE idempotency_key=?', (key,)) if idempotency_key else None
         if old and old['status'] == 'SUCCEEDED':
             return dict(old)
-        run_id = 'market-' + uuid.uuid4().hex
-        self.db.execute(
-            'INSERT OR IGNORE INTO market_sync_runs(run_id,source,symbols_json,status,started_at,idempotency_key) VALUES (?,?,?,?,?,?)',
-            (run_id, self.source_name, json.dumps(symbols), 'RUNNING', now(), key),
-        )
+        if old and old['status'] == 'RUNNING':
+            raise RuntimeError('market_sync_in_progress')
+        if old:
+            run_id = old['run_id']
+            self.db.execute(
+                "UPDATE market_sync_runs SET status='RUNNING',quote_count=0,started_at=?,finished_at=NULL,error=NULL WHERE run_id=?",
+                (now(), run_id),
+            )
+        else:
+            run_id = 'market-' + uuid.uuid4().hex
+            self.db.execute(
+                'INSERT INTO market_sync_runs(run_id,source,symbols_json,status,started_at,idempotency_key) VALUES (?,?,?,?,?,?)',
+                (run_id, self.source_name, json.dumps(symbols), 'RUNNING', now(), key),
+            )
         try:
             quotes = self.source.fetch(symbols)
             source_errors = getattr(self.source, 'last_errors', {}) or {}
@@ -81,8 +92,8 @@ class MarketService:
                         "UPDATE live_quotes SET status='SOURCE_ERROR',source_error=?,updated_at=? WHERE symbol=?",
                         (error, now(), self._bare(symbol)),
                     )
-                run_status = 'SUCCEEDED' if quotes else 'SOURCE_ERROR'
-                run_error = None if quotes else next(iter(source_errors.values()), 'no_quotes')
+                run_status = 'SOURCE_ERROR' if source_errors else 'SUCCEEDED'
+                run_error = json.dumps(source_errors, sort_keys=True) if source_errors else None
                 self.db.execute(
                     'UPDATE market_sync_runs SET status=?,quote_count=?,finished_at=?,error=? WHERE run_id=?',
                     (run_status, len(quotes), now(), run_error, run_id),

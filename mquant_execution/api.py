@@ -3,6 +3,8 @@ import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 from pathlib import Path
+import os
+from .market_scheduler import MarketScheduler
 from .service import ExecutionService
 from .reports import Reports
 from .market_service import MarketService
@@ -149,7 +151,29 @@ class APIHandler(BaseHTTPRequestHandler):
     def log_message(self, *args): pass
 
 
+def _market_symbols(db):
+    configured = os.getenv('MQUANT_MARKET_SYMBOLS', '')
+    if configured:
+        return sorted({symbol.strip() for symbol in configured.split(',') if symbol.strip()})
+    rows = db.all(
+        'SELECT DISTINCT symbol FROM positions UNION SELECT DISTINCT symbol FROM signal_positions'
+    )
+    return sorted({str(row['symbol']) for row in rows if row['symbol']})
+
+
 def serve(db_path='runtime/paper.db', host='127.0.0.1', port=8080):
     from .db import Database
-    db = Database(db_path); service = ExecutionService(db); APIHandler.service = service
-    server = ThreadingHTTPServer((host, port), APIHandler); server.serve_forever()
+    db = Database(db_path)
+    service = ExecutionService(db)
+    APIHandler.service = service
+    market_service = MarketService(db)
+    interval = int(os.getenv('MQUANT_MARKET_INTERVAL', '30'))
+    scheduler = MarketScheduler(market_service, lambda: _market_symbols(db), interval)
+    scheduler.start()
+    server = ThreadingHTTPServer((host, port), APIHandler)
+    try:
+        server.serve_forever()
+    finally:
+        scheduler.stop()
+        server.server_close()
+        db.close()

@@ -36,6 +36,11 @@ python -m mquant_execution --db runtime/paper.db serve --host 127.0.0.1 --port 8
 ```
 
 接口包括 `GET /api/v1/market/bars?symbol=&start=&end=`、`POST /api/v1/market/bars/import`、`GET /api/v1/accounts/{id}/equity`、dashboard、snapshots、transactions；dashboard 提供 bars 外的账户交易和 strategy markers。根页面是无外部 CDN、只读 HTML，含真实 bars OHLC/成交量 K 线、成交标记、持仓、订单、成交、资金流水和回放净值曲线，不含下单按钮。
+### 实时行情边界
+
+启动 `serve` 后会按 `MQUANT_MARKET_INTERVAL`（默认 30 秒）轮询 Eastmoney `push2`，标的优先取 `MQUANT_MARKET_SYMBOLS`，未配置时取已导入信号和当前持仓的标的。它是“轮询式近实时”，不是 WebSocket/交易所专线推送；不会连接券商，也不会提交 LIVE 订单。
+
+手动刷新可调用 `POST /api/v1/market/live/refresh`，例如 `{"symbols":["510300","000001"]}`；状态通过 `GET /api/v1/market/status` 查看。成功的新报价为 `LIVE`，超过 `stale_seconds` 为 `STALE`，源请求失败或报价被判无效为 `SOURCE_ERROR`，系统不会把旧报价静默标为 LIVE。Eastmoney 网络断连、限流或接口不返回数据时，当前方式只能保留最近缓存并显式报告失败；历史 `market_bars` 仅用于回放/估值，不能当作实时行情。
 
 ## PAPER 回放
 

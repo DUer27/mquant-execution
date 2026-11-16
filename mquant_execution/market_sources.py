@@ -1,4 +1,4 @@
-"""PAPER-only real-time market sources.
+"""Real-time market data source adapters.
 
 The Eastmoney push2 adapter intentionally builds the request URL explicitly. In
 particular, ``fields`` must retain its comma separators; Eastmoney accepts the
@@ -7,6 +7,7 @@ verified browser-style URL but some deployments reject ``fields=f43%2Cf44``.
 from __future__ import annotations
 
 import json
+import time
 from decimal import Decimal
 from urllib.parse import quote
 from urllib.request import Request, urlopen
@@ -15,9 +16,8 @@ from .money import text
 
 
 EASTMONEY_URL = 'https://push2.eastmoney.com/api/qt/stock/get'
-# f43/f44/f45/f46/f60 are prices expressed in cents by this endpoint. f47/f48
-# are volume and amount and are not price-scaled. f169/f170 are change percent
-# and change amount, both represented in hundredths by the endpoint.
+ # With fltt=2, f43/f44/f45/f46/f60 are actual prices. f47/f48 are
+ # volume and amount. f169 is change amount and f170 is change percent.
 FIELDS = (
     'f43,f44,f45,f46,f47,f48,f57,f58,f60,f169,f170,'
     'f19,f20,f21,f22,f23,f24,f25,f26,f27,f28,f29,f30,'
@@ -52,7 +52,7 @@ def _field(item, key, default=None):
 
 def _price(item, key):
     value = _field(item, key)
-    return None if value is None else text(Decimal(str(value)) / Decimal('100'))
+    return None if value is None else text(Decimal(str(value)))
 
 
 def normalize_quote(item, received_at, source='eastmoney.push2'):
@@ -78,8 +78,8 @@ def normalize_quote(item, received_at, source='eastmoney.push2'):
     else:
         bid = _price(item, 'f19')
         ask = _price(item, 'f20')
-    change_pct = _field(item, 'f169')
-    change_amount = _field(item, 'f170')
+    change_amount = _field(item, 'f169')
+    change_pct = _field(item, 'f170')
     name = str(_field(item, 'f58', ''))
     previous = _price(item, 'f60')
 
@@ -99,9 +99,8 @@ def normalize_quote(item, received_at, source='eastmoney.push2'):
         'volume': text(_field(item, 'f47', 0)),
         'amount': text(_field(item, 'f48', 0)),
         'prev_close': previous,
-        'change_pct': None if change_pct is None else text(change_pct),
-        'change': None if change_amount is None else text(Decimal(str(change_amount)) / Decimal('100')),
-        'change_amount': None if change_amount is None else text(Decimal(str(change_amount)) / Decimal('100')),
+        'change_pct': None if change_pct is None else text(Decimal(str(change_pct))),
+        'change': None if change_amount is None else text(Decimal(str(change_amount))),
         'asset_type': 'etf' if code.startswith(('1', '5')) else 'stock',
         'source': source,
         'status': 'LIVE',
@@ -111,14 +110,13 @@ def normalize_quote(item, received_at, source='eastmoney.push2'):
     }
 
 
-EastmoneySource = None
-
-
 class EastmoneyPush2Source:
     name = 'eastmoney.push2'
 
-    def __init__(self, url=EASTMONEY_URL, timeout=8, opener=None):
+    def __init__(self, url=EASTMONEY_URL, timeout=8, opener=None, attempts=2, retry_backoff=0.25):
         self.url, self.timeout, self.opener = url, timeout, opener or urlopen
+        self.attempts = max(1, int(attempts))
+        self.retry_backoff = max(0, float(retry_backoff))
         self.last_errors = {}
 
     def _request_url(self, symbol):
@@ -130,16 +128,9 @@ class EastmoneyPush2Source:
             f'&secid={quote(_secid(symbol), safe=".")}'
         )
 
-    def fetch(self, symbols):
-        symbols = [str(x) for x in (symbols or [])]
-        self.last_errors = {}
-        if not symbols:
-            return []
-        from datetime import datetime, timezone
-
-        received = datetime.now(timezone.utc).isoformat()
-        rows = []
-        for symbol in symbols:
+    def _fetch_one(self, symbol, received):
+        last_error = None
+        for attempt in range(self.attempts):
             try:
                 request = Request(self._request_url(symbol), headers=dict(HEADERS), method='GET')
                 response = self.opener(request, timeout=self.timeout)
@@ -157,7 +148,25 @@ class EastmoneyPush2Source:
                 item = payload.get('data')
                 if not item:
                     raise ValueError('eastmoney_quote_missing:' + _bare_symbol(symbol))
-                rows.append(normalize_quote(item, received, self.name))
+                return normalize_quote(item, received, self.name)
+            except Exception as exc:
+                last_error = exc
+                if attempt + 1 < self.attempts and self.retry_backoff:
+                    time.sleep(self.retry_backoff * (attempt + 1))
+        raise last_error or RuntimeError('eastmoney_quote_failed:' + _bare_symbol(symbol))
+
+    def fetch(self, symbols):
+        symbols = [str(x) for x in (symbols or [])]
+        self.last_errors = {}
+        if not symbols:
+            return []
+        from datetime import datetime, timezone
+
+        received = datetime.now(timezone.utc).isoformat()
+        rows = []
+        for symbol in symbols:
+            try:
+                rows.append(self._fetch_one(symbol, received))
             except Exception as exc:
                 # A bad symbol must not discard good quotes from the same
                 # refresh. MarketService records this as SOURCE_ERROR/STALE.
