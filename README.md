@@ -46,3 +46,9 @@ python -m mquant_execution --db runtime/paper.db replay --start 2026-01-01 --end
 ```
 
 这是确定性回放/教学用模拟，不是交易建议。默认交易日是周一至周五，未内置中国交易所节假日；金额和价格在 SQLite 中按定标文本保存，Python 侧使用 `Decimal`。
+
+## 场景报告与执行模式
+
+除正式 `paper` 账户的 replay 外，`ScenarioService.run` 提供隔离的 PAPER 场景回放：执行型 scenario 会复制数据到临时 SQLite、创建临时账户，逐日调用现有 signal_positions/planner/execution/settlement/market_bars 和 snapshots，完成后临时库自动删除，绝不污染正式 paper 账户。可通过 `strategy_id`/`signal_id` 选择信号；激活策略优先使用其 `TARGET_PORTFOLIO`，`RECORD_ONLY` 返回 blocked 且没有 fills；无信号保留纯资本估值并明确 `NOT_EXECUTED`。不实现 LLM 或 LIVE 下单。
+
+所有场景结果采用 `scenario-report.v1`。报告包含 orders、fills、position lots、snapshots、逐日净值 curve，以及 turnover、fees、slippage/shock cost、filled/rejected orders、return、pnl、drawdown 和 cashflows。场景支持 `initial_cash`、`cashflow`、`fee_bps`、`shock_cost_bps`、`max_order_value`、`max_symbol_weight`、`minimum_cash_reserve`、`max_participation`、`positions`；默认继承源账户 `AccountConfig`。场景 run 按参数幂等，交易日、行情缺失、gate、整手、T+1 和风控限制仍可能导致拒单。

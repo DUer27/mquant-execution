@@ -26,7 +26,7 @@ class RebalancePlanner:
             q=self.db.one("SELECT * FROM quotes WHERE symbol=? AND quote_date=?",(symbol,quote_date)); bar=market_bar(self.db,symbol,quote_date)
             if not q and not bar: continue
             price=q['price'] if q else bar['close']; target=int(t['target_quantity']) if t['target_quantity'] is not None else floor_lot(equity*dec(t['target_weight'])/dec(price),cfg.default_lot_size)
-            held=int(current.get(symbol,{}).get('quantity',0)); available=int(current.get(symbol,{}).get('available_quantity',0)); delta=target-held
+            held=int(current[symbol]['quantity']) if symbol in current else 0; available=int(current[symbol]['available_quantity']) if symbol in current else 0; delta=target-held
             if delta<0: orders.append(self._make(account_id,signal,symbol,'SELL',min(-delta,available),quote_date,t['target_weight'],equity,'reduce_to_target'))
             elif delta>0: orders.append(self._make(account_id,signal,symbol,'BUY',delta,quote_date,t['target_weight'],equity,'increase_to_target'))
         return [o for o in orders if o['quantity']>0]
