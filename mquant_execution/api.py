@@ -109,7 +109,7 @@ class APIHandler(BaseHTTPRequestHandler):
                 if action in ('cashflows','cashflow'):
                     return self._send(201,svc.add_cashflow(sid,data['event_date'],data['amount'],data.get('flow_type','DEPOSIT'),data.get('note',''),data.get('cashflow_id'),data.get('idempotency_key')))
                 if action in ('run','execute'):
-                    return self._send(200,svc.run(sid,data['start'],data['end'],data.get('parameters'),data.get('idempotency_key')))
+                    return self._send(200,svc.run(sid,data['start'],data['end'],data.get('parameters'),data.get('idempotency_key'),data.get('strategy_id'),data.get('signal_id')))
             if len(parts) >= 5 and parts[:3] == ['api', 'v1', 'accounts']:
                 aid, action = parts[3], parts[4]; tail = parts[5] if len(parts) > 5 else ''
                 if action in ('strategy','strategies') and tail in ('activate','active'):

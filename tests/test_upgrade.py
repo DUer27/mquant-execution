@@ -30,3 +30,13 @@ class UpgradeTests(unittest.TestCase):
    self.assertEqual(str(db.balance('paper')['available_cash']), '0')
    svc=ScenarioService(db); svc.create('paper','s1','test','100'); a=svc.add_cashflow('s1','2026-01-02','50'); b=svc.add_cashflow('s1','2026-01-02','50'); self.assertEqual(a['cashflow_id'],b['cashflow_id'])
    report=PaperReport(db).build('paper'); self.assertEqual(report['schema_version'],'paper-report.v1'); self.assertIn('market',report); self.assertIn('account',report); self.assertIn('evidence',report)
+
+ def test_scenario_executes_isolated_target_signal(self):
+  from mquant_execution.service import ExecutionService
+  with tempfile.TemporaryDirectory() as d:
+   d=Path(d); service=ExecutionService(Database(d/'scenario.db')); service.db.create_account('paper'); service.deposit('paper','1000000','initial')
+   service.import_bars([{'code':'300136','date':'2026-01-02','open':'10','close':'10','high':'11','low':'9','volume':'1000000','amount':'10000000'}])
+   signal={'schema_version':'signal.v1','signal_id':'scenario-signal','strategy_id':'scenario','generated_at':'2025-12-31T00:00:00Z','signal_date':'2026-01-01','effective_at':'2026-01-02T09:30:00+08:00','expires_at':'2030-01-01T00:00:00Z','action':'TARGET_PORTFOLIO','gate_status':'ready','planned_weight':'0.1','cash_target_weight':'0.9','portfolio':[{'symbol':'300136','asset_type':'stock','target_weight':'0.1'}],'provenance':{'source':'test','data_policy':'bars'}}
+   service.import_signal_data(signal,'paper'); svc=ScenarioService(service.db); svc.create('paper','exec','exec','1000000')
+   result=svc.run('exec','2026-01-02','2026-01-02',{'signal_id':'scenario-signal'})
+   self.assertEqual(result['execution_status'],'EXECUTED'); self.assertGreater(result['fills_count'],0); self.assertEqual(service.db.one('SELECT COUNT(*) FROM fills')[0],0)
