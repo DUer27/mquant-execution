@@ -91,15 +91,7 @@ class APIHandler(BaseHTTPRequestHandler):
             if p in ('/api/v1/market/live/refresh','/api/v1/market/refresh','/api/v1/market/sync'):
                 symbols=data.get('symbols',data.get('symbol',[])); symbols=[symbols] if isinstance(symbols,str) else symbols
                 return self._send(200,MarketService(self.db).refresh(symbols,data.get('idempotency_key')))
-            if p == '/api/v1/market/bars/import':
-                if 'csv_text' in data: count = self.service.import_bars_csv(data['csv_text'])
-                elif 'bars' in data: count = self.service.import_bars(data['bars'])
-                elif 'file' in data or 'path' in data:
-                    raw = data.get('file', data.get('path')); path = Path(raw).resolve(); cwd = Path.cwd().resolve()
-                    if cwd != path and cwd not in path.parents: raise ValueError('file_path_outside_working_directory')
-                    count = self.service.import_bars_file(path)
-                else: raise ValueError('bars_import_requires_csv_text_or_bars')
-                return self._send(200, {'count': count})
+            if p == '/api/v1/market/bars/import': return self._send(410, {'error': 'external_import_disabled'})
             if p in ('/api/v1/strategies/sync','/api/v1/strategy/sync'):
                 return self._send(200,StrategySyncService(self.db).sync(data.get('idempotency_key'),data.get('catalog',data.get('strategies'))))
             if p in ('/api/v1/scenarios','/api/v1/scenarios/create'):
@@ -120,18 +112,8 @@ class APIHandler(BaseHTTPRequestHandler):
                     return self._send(200,StrategySyncService(self.db).run_once(aid,data.get('parameters')))
                 if action == 'cash' and tail in ('deposit', 'withdraw'):
                     result = (self.service.deposit if tail == 'deposit' else self.service.withdraw)(aid, data['amount'], data.get('reference', 'api')); return self._send(200, {'ok': result})
-                if action == 'signals' and tail == 'import':
-                    row, status = self.service.import_signal_data(data['signal'], aid); return self._send(200, {'status': status, 'signal': row})
-                if action == 'signals' and tail == 'import-file':
-                    raw = data.get('file_name', ''); content = data.get('content', '')
-                    if not raw or not content: raise ValueError('signal_file_name_and_content_required')
-                    import base64, tempfile
-                    suffix = '.zip' if raw.lower().endswith('.zip') else '.json'; payload = base64.b64decode(content) if data.get('encoding') == 'base64' else content.encode()
-                    with tempfile.NamedTemporaryFile('wb', suffix=suffix, delete=False) as handle: handle.write(payload); name = handle.name
-                    try: row, status = self.service.import_signal(name, aid)
-                    finally: Path(name).unlink(missing_ok=True)
-                    return self._send(200, {'status': status, 'signal': row})
-                if action == 'quotes' and tail == 'import': return self._send(200, {'count': self._quotes_data(data)})
+                if action in ('signals', 'quotes') and tail in ('import', 'import-file'):
+                    return self._send(410, {'error': 'external_import_disabled'})
                 if action == 'replay':
                     from .replay import ReplayService
                     return self._send(200, ReplayService(self.db).replay(aid, data['start'], data['end']))

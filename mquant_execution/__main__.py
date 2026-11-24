@@ -18,9 +18,6 @@ def main(argv=None):
     cash=sub.add_parser('cash'); cashsub=cash.add_subparsers(dest='cash_command',required=True)
     for n in ('deposit','withdraw'):
         x=cashsub.add_parser(n); x.add_argument('--account',default='paper'); x.add_argument('--amount',required=True); x.add_argument('--reference',default='manual')
-    x=sub.add_parser('import-signal'); x.add_argument('path'); x.add_argument('--account',default='paper')
-    x=sub.add_parser('import-quotes'); x.add_argument('path')
-    x=sub.add_parser('import-bars'); x.add_argument('path', nargs='?'); x.add_argument('--csv-text'); x.add_argument('--account',default='paper')
     x=sub.add_parser('simulate'); x.add_argument('--account',default='paper'); x.add_argument('--signal',required=True); x.add_argument('--as-of',required=True)
     x=sub.add_parser('replay'); x.add_argument('--account',default='paper'); x.add_argument('--start',required=True); x.add_argument('--end',required=True)
     x=sub.add_parser('settle'); x.add_argument('--account',default='paper'); x.add_argument('--as-of',required=True)
@@ -48,10 +45,6 @@ def main(argv=None):
     try:
         if args.command=='init': print(json.dumps({'created':db.create_account(args.account,args.cash),'account':args.account}))
         elif args.command=='cash': print(json.dumps({'ok':getattr(service,args.cash_command)(args.account,args.amount,args.reference)}))
-        elif args.command=='import-signal': print(json.dumps(dict(zip(('signal','status'),service.import_signal(args.path,args.account))),default=str,ensure_ascii=False))
-        elif args.command=='import-quotes': print(json.dumps({'count':service.import_quotes(args.path)}))
-        elif args.command=='import-bars':
-            count=service.import_bars_csv(args.csv_text) if args.csv_text is not None else service.import_bars_file(args.path); print(json.dumps({'count':count}))
         elif args.command=='simulate': print(json.dumps(service.simulate(args.account,args.signal,args.as_of),default=str,ensure_ascii=False,indent=2))
         elif args.command=='replay':
             from .replay import ReplayService
