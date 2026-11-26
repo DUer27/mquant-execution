@@ -103,7 +103,7 @@ class APITests(unittest.TestCase):
                 server.shutdown()
                 server.server_close()
 
-    def test_signal_file_import_endpoint(self):
+    def test_external_signal_file_import_is_disabled(self):
         import base64
         with tempfile.TemporaryDirectory() as directory:
             service = ExecutionService(Database(Path(directory) / 'file-import.db'))
@@ -115,25 +115,22 @@ class APITests(unittest.TestCase):
                     'content': base64.b64encode(json.dumps(self._signal('RECORD_ONLY', 'file-signal')).encode()).decode(),
                     'encoding': 'base64',
                 }
-                result = self._post(base, '/api/v1/accounts/paper/signals/import-file', payload)
-                self.assertEqual(result['status'], 'IMPORTED')
-                self.assertEqual(result['signal']['signal_id'], 'file-signal')
+                with self.assertRaises(urllib.error.HTTPError) as ctx:
+                    self._post(base, '/api/v1/accounts/paper/signals/import-file', payload)
+                self.assertEqual(ctx.exception.code, 410)
             finally:
                 server.shutdown()
                 server.server_close()
 
-    def test_record_only_signal_has_no_orders(self):
+    def test_external_signal_import_is_disabled(self):
         with tempfile.TemporaryDirectory() as directory:
             service = ExecutionService(Database(Path(directory) / 'a.db'))
             service.db.create_account('paper')
             server, base = self._server(service)
             try:
-                imported = self._post(base, '/api/v1/accounts/paper/signals/import', {'signal': self._signal('RECORD_ONLY', 'record-only')})
-                self.assertEqual(imported['status'], 'IMPORTED')
-                result = self._post(base, '/api/v1/accounts/paper/simulate', {'signal_id': 'record-only', 'as_of': '2026-09-21'})
-                self.assertEqual(result['planned_orders'], 0)
-                self.assertEqual(self._get(base, '/api/v1/accounts/paper/orders'), [])
-                self.assertEqual(service.db.one('SELECT COUNT(*) FROM orders WHERE account_id=?', ('paper',))[0], 0)
+                with self.assertRaises(urllib.error.HTTPError) as ctx:
+                    self._post(base, '/api/v1/accounts/paper/signals/import', {'signal': self._signal('RECORD_ONLY', 'record-only')})
+                self.assertEqual(ctx.exception.code, 410)
             finally:
                 server.shutdown()
                 server.server_close()

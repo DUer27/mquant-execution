@@ -28,7 +28,7 @@ class MarketBarTests(unittest.TestCase):
             self.assertEqual(row['close'], '4.2000')
             self.assertEqual(ReplayService(service.db).replay('paper', '2026-01-02', '2026-01-02')['trading_days'], ['2026-01-02'])
 
-    def test_api_query_and_import(self):
+    def test_api_import_is_disabled_but_query_remains_available(self):
         with tempfile.TemporaryDirectory() as directory:
             service = ExecutionService(Database(Path(directory) / 'api.db'))
             service.db.create_account('paper')
@@ -40,14 +40,15 @@ class MarketBarTests(unittest.TestCase):
             try:
                 payload = {'bars': [{'code': '510300', 'date': '2026-01-02', 'open': '4', 'close': '4.1', 'high': '4.2', 'low': '3.9'}]}
                 request = urllib.request.Request(base + '/api/v1/market/bars/import', data=json.dumps(payload).encode(), headers={'Content-Type': 'application/json'})
-                self.assertEqual(json.load(urllib.request.urlopen(request))['count'], 1)
+                with self.assertRaises(urllib.error.HTTPError) as ctx:
+                    urllib.request.urlopen(request)
+                self.assertEqual(ctx.exception.code, 410)
                 rows = json.load(urllib.request.urlopen(base + '/api/v1/market/bars?symbol=510300&start=2026-01-01&end=2026-01-03'))
-                self.assertEqual(rows[0]['close'], '4.1000')
+                self.assertEqual(rows, [])
                 self.assertEqual(json.load(urllib.request.urlopen(base + '/api/v1/accounts/paper/equity'))['mode'], 'PAPER')
             finally:
                 server.shutdown()
                 server.server_close()
-
     def test_replay_executes_target_signal_from_bars(self):
         with tempfile.TemporaryDirectory() as directory:
             service = ExecutionService(Database(Path(directory) / 'replay.db'))
