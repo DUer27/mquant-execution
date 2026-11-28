@@ -24,7 +24,7 @@ class MQuantClient:
     into a cached/old signal.
     """
 
-    def __init__(self, base_url=None, timeout=8, opener=None, offline=None):
+    def __init__(self, base_url=None, timeout=30, opener=None, offline=None):
         self.base_url = (base_url or os.getenv('MQUANT_URL', 'http://127.0.0.1:5555')).rstrip('/')
         self.timeout = timeout
         self.opener = opener or urlopen
